@@ -8,12 +8,12 @@ import java.net.MulticastSocket;
 public class ReadingThread implements Runnable {
 
 	private MulticastSocket socket;
-	private InetAddress group;
+	private InetAddress address;
 	private int port;
 
-	ReadingThread(MulticastSocket socket, int port, InetAddress group) {
+	ReadingThread(MulticastSocket socket, int port, InetAddress address) {
 		this.socket = socket;
-		this.group = group;
+		this.address = address;
 		this.port = port;
 	}
 

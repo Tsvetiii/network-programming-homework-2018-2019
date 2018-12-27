@@ -13,31 +13,44 @@ public class Client {
 	final static String INET_ADDR = "224.0.0.3";
 	final static int PORT = 8888;
 
-	public static void main(String[] args) throws UnknownHostException {
-		// Get the address that we are going to connect to.
-		InetAddress address = InetAddress.getByName(INET_ADDR);
+	MulticastSocket clientSocket;
+	InetAddress address;
 
-		BufferedReader consoleReader;
+	BufferedReader reader;
 
-		// Create a new Multicast socket (that will allow other sockets/programs
-		// to join it as well.
-		try (MulticastSocket clientSocket = new MulticastSocket(PORT)) {
-			// Joint the Multicast group.
-			clientSocket.joinGroup(address);
-			consoleReader = new BufferedReader(new InputStreamReader(System.in));
+	Client(String inetAddr, int port) throws IOException {
+		this.clientSocket = new MulticastSocket(port);
+		address = InetAddress.getByName(inetAddr);
 
-			Thread reading = new Thread(new ReadingThread(clientSocket, PORT, address));
-			reading.start();
+		clientSocket.joinGroup(address);
 
-			while (true) {
-				// System.out.print("Enter some text: ");
-				String msg = consoleReader.readLine();
+		reader = new BufferedReader(new InputStreamReader(System.in));
+	}
 
-				DatagramPacket msgPacket = new DatagramPacket(msg.getBytes(), msg.getBytes().length, address, PORT);
-				clientSocket.send(msgPacket);
-			}
-		} catch (IOException ex) {
-			ex.printStackTrace();
+	void sendMessage(String msg) throws IOException {
+		DatagramPacket msgPacket = new DatagramPacket(msg.getBytes(), msg.getBytes().length, address, PORT);
+		clientSocket.send(msgPacket);
+	}
+
+	void chat() throws IOException {
+		Thread reading = new Thread(new ReadingThread(clientSocket, PORT, address));
+		reading.start();
+
+		while (true) {
+			// System.out.print("Enter some text: ");
+			String msg = reader.readLine();
+			
+			sendMessage(msg);
 		}
+	}
+
+	public static void main(String[] args) throws UnknownHostException {
+		try {
+			Client client = new Client(INET_ADDR, PORT);
+			client.chat();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
 	}
 }

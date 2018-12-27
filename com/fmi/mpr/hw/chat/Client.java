@@ -1,7 +1,9 @@
 package com.fmi.mpr.hw.chat;
 
+import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -13,11 +15,15 @@ import java.net.MulticastSocket;
 import java.net.UnknownHostException;
 import java.util.Scanner;
 
+import javax.imageio.ImageIO;
+
 public class Client {
 
 	final static String INET_ADDR = "224.0.0.3";
 	final static int PORT = 8888;
 	final static String USERS_FILE = "users.txt";
+	final static String TEMP_FILE = "temp.txt";
+	final static String LOGOUT = "logout";
 
 	static volatile boolean isLoggedIn = false;
 
@@ -41,8 +47,41 @@ public class Client {
 	}
 
 	void sendMessage(String msg) throws IOException {
-		DatagramPacket msgPacket = new DatagramPacket(msg.getBytes(), msg.getBytes().length, address, PORT);
-		clientSocket.send(msgPacket);
+		String msgType = msg.split(" ")[0].trim();
+		String msgData = msg.substring(msgType.length()).trim();
+
+		switch (msgType) {
+		case "TEXT": {
+			String message = new StringBuilder().append("TEXT ").append(username).append(": ").append(msgData)
+					.toString();
+			DatagramPacket msgPacket = new DatagramPacket(message.getBytes(), message.getBytes().length, address, PORT);
+			clientSocket.send(msgPacket);
+			break;
+		}
+		case "IMAGE":
+//			BufferedImage img = ImageIO.read(new File(msgData));
+//			ByteArrayOutputStream out = new ByteArrayOutputStream();
+//			ImageIO.write(img, "jpg", out);
+//			out.flush();
+//			byte[] buffer = out.toByteArray();
+//
+//			DatagramPacket imgPacket = new DatagramPacket(buffer, buffer.length, address, PORT);
+//			clientSocket.send(imgPacket);
+			break;
+		case "VIDEO":
+			break;
+		case "LOGOUT": {
+			DatagramPacket msgPacket = new DatagramPacket(msgData.getBytes(), msgData.getBytes().length, address, PORT);
+			clientSocket.send(msgPacket);
+			break;
+		}
+
+		default:
+			System.out.println("Invalid message type!");
+			break;
+		}
+//		DatagramPacket msgPacket = new DatagramPacket(msg.getBytes(), msg.getBytes().length, address, PORT);
+//		clientSocket.send(msgPacket);
 	}
 
 	void chat() throws IOException {
@@ -50,13 +89,15 @@ public class Client {
 		reading.start();
 
 		while (isLoggedIn) {
-			System.out.print("Enter some text: ");
+			// System.out.print("Enter some text: "); <- It is ugly!
 			String msg = reader.readLine();
-			if (msg.equals("logout")) {
+			// here we should work with the msg.
+			if (msg.equals(LOGOUT)) {
 				logout();
 				break;
+			} else {
+				sendMessage(msg);
 			}
-			sendMessage(username + ": " + msg);
 		}
 	}
 
@@ -93,14 +134,15 @@ public class Client {
 	}
 
 	private void logout() throws IOException {
-		sendMessage(username + " logged out.");
+		sendMessage("LOGOUT " + username + " logged out.");
 		removeFromActiveUsers();
 		isLoggedIn = false;
+		clientSocket.leaveGroup(address);
 		clientSocket.close();
 	}
 
 	private synchronized void removeFromActiveUsers() throws IOException {
-		String tempFilename = "temp.txt";
+		String tempFilename = TEMP_FILE;
 		try (BufferedWriter writer = new BufferedWriter(new FileWriter(tempFilename));
 				BufferedReader reader = new BufferedReader(new FileReader(USERS_FILE))) {
 
@@ -120,7 +162,7 @@ public class Client {
 	}
 
 	// Should change this
-	protected void finalize() {
+	protected void finalize() throws IOException {
 		consoleReader.close();
 		// new File(USERS_FILE).delete();
 	}

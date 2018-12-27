@@ -11,3 +11,12 @@
 /ClientHandler.class
 /Client$1.class
 /Client$2.class
+/GroupChat.class
+/ReadThread.class
+/MulticastServer.class
+/MulticastServerThread.class
+/MulticastSocketServer.class
+/MulticastSocketClient.class
+/MulticastClient.class
+/Reading.class
+/ReadingThread.class

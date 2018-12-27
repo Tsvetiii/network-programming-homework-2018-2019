@@ -1,67 +1,43 @@
 package com.fmi.mpr.hw.chat;
 
-//Java implementation for multithreaded chat client 
-//Save file as Client.java 
-
-import java.io.*;
-import java.net.*;
-import java.util.Scanner;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.DatagramPacket;
+import java.net.InetAddress;
+import java.net.MulticastSocket;
+import java.net.UnknownHostException;
 
 public class Client {
-	final static int ServerPort = 1234;
 
-	public static void main(String args[]) throws UnknownHostException, IOException {
-		Scanner scn = new Scanner(System.in);
+	final static String INET_ADDR = "224.0.0.3";
+	final static int PORT = 8888;
 
-		// getting localhost ip
-		InetAddress ip = InetAddress.getByName("localhost");
+	public static void main(String[] args) throws UnknownHostException {
+		// Get the address that we are going to connect to.
+		InetAddress address = InetAddress.getByName(INET_ADDR);
 
-		// establish the connection
-		Socket s = new Socket(ip, ServerPort);
+		BufferedReader consoleReader;
 
-		// obtaining input and out streams
-		DataInputStream dis = new DataInputStream(s.getInputStream());
-		DataOutputStream dos = new DataOutputStream(s.getOutputStream());
+		// Create a new Multicast socket (that will allow other sockets/programs
+		// to join it as well.
+		try (MulticastSocket clientSocket = new MulticastSocket(PORT)) {
+			// Joint the Multicast group.
+			clientSocket.joinGroup(address);
+			consoleReader = new BufferedReader(new InputStreamReader(System.in));
 
-		// sendMessage thread
-		Thread sendMessage = new Thread(new Runnable() {
-			@Override
-			public void run() {
-				while (true) {
+			Thread reading = new Thread(new ReadingThread(clientSocket, PORT, address));
+			reading.start();
 
-					// read the message to deliver.
-					String msg = scn.nextLine();
+			while (true) {
+				// System.out.print("Enter some text: ");
+				String msg = consoleReader.readLine();
 
-					try {
-						// write on the output stream
-						dos.writeUTF(msg);
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-				}
+				DatagramPacket msgPacket = new DatagramPacket(msg.getBytes(), msg.getBytes().length, address, PORT);
+				clientSocket.send(msgPacket);
 			}
-		});
-
-		// readMessage thread
-		Thread readMessage = new Thread(new Runnable() {
-			@Override
-			public void run() {
-
-				while (true) {
-					try {
-						// read the message sent to this client
-						String msg = dis.readUTF();
-						System.out.println(msg);
-					} catch (IOException e) {
-
-						e.printStackTrace();
-					}
-				}
-			}
-		});
-
-		sendMessage.start();
-		readMessage.start();
-
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		}
 	}
 }

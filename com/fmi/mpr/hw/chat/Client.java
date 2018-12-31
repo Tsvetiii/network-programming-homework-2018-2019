@@ -1,10 +1,9 @@
 package com.fmi.mpr.hw.chat;
 
-import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -15,8 +14,6 @@ import java.net.MulticastSocket;
 import java.net.UnknownHostException;
 import java.util.Scanner;
 
-import javax.imageio.ImageIO;
-
 public class Client {
 
 	final static String INET_ADDR = "224.0.0.3";
@@ -24,6 +21,7 @@ public class Client {
 	final static String USERS_FILE = "users.txt";
 	final static String TEMP_FILE = "temp.txt";
 	final static String LOGOUT = "logout";
+	final static int BUFF_SIZE = 65554;
 
 	static volatile boolean isLoggedIn = false;
 
@@ -58,16 +56,28 @@ public class Client {
 			clientSocket.send(msgPacket);
 			break;
 		}
-		case "IMAGE":
-//			BufferedImage img = ImageIO.read(new File(msgData));
-//			ByteArrayOutputStream out = new ByteArrayOutputStream();
-//			ImageIO.write(img, "jpg", out);
-//			out.flush();
-//			byte[] buffer = out.toByteArray();
-//
-//			DatagramPacket imgPacket = new DatagramPacket(buffer, buffer.length, address, PORT);
-//			clientSocket.send(imgPacket);
+		case "IMAGE": {
+			// IMAGE E:\Eclipse Photon Workspace\sign.jpg
+			String imageName = new File(msgData).getName();
+			String message = new StringBuilder().append("IMAGE ").append(username).append(" sent image ")
+					.append(imageName).toString();
+			DatagramPacket msgPacket = new DatagramPacket(message.getBytes(), message.getBytes().length, address, PORT);
+			clientSocket.send(msgPacket);
+
+			try (FileInputStream in = new FileInputStream(new File(msgData))) {
+				byte[] buff = new byte[BUFF_SIZE];
+				int readBytes;
+				while ((readBytes = in.read(buff, 0, BUFF_SIZE)) > 0) {
+					// new ByteArrayInputStream("IMAGE ".getBytes()).read(buff); // close
+					msgPacket = new DatagramPacket(buff, readBytes, address, PORT);
+					clientSocket.send(msgPacket);
+				}
+			} catch (IOException e) {
+				System.out.println("Could not send image.");
+				e.printStackTrace();
+			}
 			break;
+		}
 		case "VIDEO":
 			break;
 		case "LOGOUT": {
@@ -80,18 +90,15 @@ public class Client {
 			System.out.println("Invalid message type!");
 			break;
 		}
-//		DatagramPacket msgPacket = new DatagramPacket(msg.getBytes(), msg.getBytes().length, address, PORT);
-//		clientSocket.send(msgPacket);
 	}
 
 	void chat() throws IOException {
-		Thread reading = new Thread(new ReadingThread(username, clientSocket, PORT, address));
+		Thread reading = new Thread(new ReadingThread(username, clientSocket));
 		reading.start();
 
 		while (isLoggedIn) {
-			// System.out.print("Enter some text: "); <- It is ugly!
-			String msg = reader.readLine();
-			// here we should work with the msg.
+			// System.out.print("Enter some text: ");
+			String msg = reader.readLine(); // The format of the msg is: "msgType msg"
 			if (msg.equals(LOGOUT)) {
 				logout();
 				break;
@@ -161,7 +168,7 @@ public class Client {
 		new File(tempFilename).renameTo(new File(USERS_FILE));
 	}
 
-	// Should change this
+	// Must change this
 	protected void finalize() throws IOException {
 		consoleReader.close();
 		// new File(USERS_FILE).delete();
@@ -174,8 +181,6 @@ public class Client {
 			client.chat();
 		} catch (IOException e) {
 			e.printStackTrace();
-		} finally {
-			new File(USERS_FILE).delete();
 		}
 
 	}

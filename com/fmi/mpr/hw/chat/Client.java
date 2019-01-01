@@ -11,17 +11,17 @@ import java.io.InputStreamReader;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
-import java.net.UnknownHostException;
 import java.util.Scanner;
 
 public class Client {
 
-	final static String INET_ADDR = "224.0.0.3";
-	final static int PORT = 8888;
+	final static int BUFF_SIZE = 65554;
 	final static String USERS_FILE = "users.txt";
 	final static String TEMP_FILE = "temp.txt";
-	final static String LOGOUT = "logout";
-	final static int BUFF_SIZE = 65554;
+	final static String LOGOUT = "LOGOUT";
+	final static String WELCOME_MSG = "Welcome to the chat room. \nEvery message you want to send must start with the message type"
+			+ " (TEXT, VIDEO, IMAGE), \nfollowed by one space and then the message itself. \n"
+			+ "If you want to leave the chat room, you must enter LOGOUT. Enjoy!";
 
 	static volatile boolean isLoggedIn = false;
 
@@ -30,6 +30,7 @@ public class Client {
 	String username;
 	MulticastSocket clientSocket;
 	InetAddress address;
+	int port;
 
 	BufferedReader reader;
 
@@ -37,6 +38,7 @@ public class Client {
 		this.username = username;
 		this.clientSocket = new MulticastSocket(port);
 		this.address = InetAddress.getByName(inetAddr);
+		this.port = port;
 
 		clientSocket.joinGroup(address);
 		isLoggedIn = true;
@@ -45,7 +47,7 @@ public class Client {
 	}
 
 	void sendMessage(String msg) throws IOException {
-		String msgType = msg.split(" ")[0].trim();
+		String msgType = msg.split(" ")[0].trim().toUpperCase();
 		String msgData = msg.substring(msgType.length()).trim();
 
 		String message = null;
@@ -53,7 +55,7 @@ public class Client {
 		switch (msgType) {
 		case "TEXT": {
 			message = new StringBuilder().append("TEXT ").append(username).append(": ").append(msgData).toString();
-			DatagramPacket msgPacket = new DatagramPacket(message.getBytes(), message.getBytes().length, address, PORT);
+			DatagramPacket msgPacket = new DatagramPacket(message.getBytes(), message.getBytes().length, address, port);
 			clientSocket.send(msgPacket);
 			break;
 		}
@@ -68,14 +70,14 @@ public class Client {
 			String imageName = file.getName();
 			String info = (msgType.equals("IMAGE")) ? " sent image " : " sent video ";
 			message = new StringBuilder().append("IMAGE ").append(username).append(info).append(imageName).toString();
-			DatagramPacket msgPacket = new DatagramPacket(message.getBytes(), message.getBytes().length, address, PORT);
+			DatagramPacket msgPacket = new DatagramPacket(message.getBytes(), message.getBytes().length, address, port);
 			clientSocket.send(msgPacket);
 
 			try (FileInputStream in = new FileInputStream(new File(msgData))) {
 				byte[] buff = new byte[BUFF_SIZE];
 				int readBytes;
 				while ((readBytes = in.read(buff, 0, BUFF_SIZE)) > 0) {
-					msgPacket = new DatagramPacket(buff, readBytes, address, PORT);
+					msgPacket = new DatagramPacket(buff, readBytes, address, port);
 					clientSocket.send(msgPacket);
 				}
 			} catch (IOException e) {
@@ -86,8 +88,9 @@ public class Client {
 		}
 
 		case "LOGOUT": {
-			DatagramPacket msgPacket = new DatagramPacket(msgData.getBytes(), msgData.getBytes().length, address, PORT);
+			DatagramPacket msgPacket = new DatagramPacket(msg.getBytes(), msg.getBytes().length, address, port);
 			clientSocket.send(msgPacket);
+			logout();
 			break;
 		}
 
@@ -101,12 +104,12 @@ public class Client {
 		Thread reading = new Thread(new ReadingThread(username, clientSocket));
 		reading.start();
 
+		System.out.println(WELCOME_MSG);
+
 		while (isLoggedIn) {
-			// System.out.print("Enter some text: ");
-			String msg = reader.readLine(); // The format of the msg is: "msgType msg"
-			if (msg.equals(LOGOUT)) {
-				logout();
-				break;
+			String msg = reader.readLine();
+			if (msg.toUpperCase().equals(LOGOUT)) {
+				sendMessage("LOGOUT " + username + " logged out.");
 			} else {
 				sendMessage(msg);
 			}
@@ -126,7 +129,7 @@ public class Client {
 		return false;
 	}
 
-	private static String login() throws IOException {
+	private static String login() {
 		String username = "";
 		try (BufferedWriter writer = new BufferedWriter(new FileWriter(USERS_FILE, true))) {
 			System.out.print("Enter username: ");
@@ -141,16 +144,29 @@ public class Client {
 				writer.write(username);
 				writer.newLine();
 			}
+		} catch (IOException e) {
+			System.out.println("Error during login.");
+			System.exit(0);
 		}
 		return username;
 	}
 
 	private void logout() throws IOException {
-		sendMessage("LOGOUT " + username + " logged out.");
-		removeFromActiveUsers();
-		isLoggedIn = false;
-		clientSocket.leaveGroup(address);
-		clientSocket.close();
+		try {
+			removeFromActiveUsers();
+			isLoggedIn = false;
+			clientSocket.leaveGroup(address);
+			clientSocket.close();
+		} catch (IOException e) {
+			System.out.println("Error during logout.");
+		} finally {
+			closeStreams();
+		}
+	}
+
+	private void closeStreams() throws IOException {
+		consoleReader.close();
+		reader.close();
 	}
 
 	private synchronized void removeFromActiveUsers() throws IOException {
@@ -173,16 +189,26 @@ public class Client {
 		new File(tempFilename).renameTo(new File(USERS_FILE));
 	}
 
-	// Must change this
-	protected void finalize() throws IOException {
-		consoleReader.close();
-		// new File(USERS_FILE).delete();
-	}
+	public static void main(String[] args) {
+		if (args.length != 2) {
+			System.out.println("Expected: InetAddress and Port.");
+			return;
+		}
 
-	public static void main(String[] args) throws UnknownHostException {
+		String inetAddress = null;
+		int port = 0;
 		try {
-			String user = login();
-			Client client = new Client(user, INET_ADDR, PORT);
+			inetAddress = args[0];
+			port = Integer.parseInt(args[1]);
+		} catch (Exception e) {
+			System.out.println("Invalid address or port.");
+			return;
+		}
+
+		String user = login();
+		Client client = null;
+		try {
+			client = new Client(user, inetAddress, port);
 			client.chat();
 		} catch (IOException e) {
 			e.printStackTrace();

@@ -29,7 +29,7 @@ public class ReadingThread implements Runnable {
 				socket.receive(msgPacket);
 				String msg = new String(buf, 0, buf.length);
 
-				String msgType = msg.split(" ")[0].trim();
+				String msgType = msg.split(" ")[0].trim().toUpperCase();
 				String msgData = msg.substring(msgType.length()).trim();
 
 				if (msgData.startsWith(username)) {
@@ -37,12 +37,12 @@ public class ReadingThread implements Runnable {
 				}
 
 				switch (msgType) {
+				case "LOGOUT":
 				case "TEXT": {
 					System.out.println(msgData);
 					break;
 				}
 				case "VIDEO":
-
 				case "IMAGE": {
 					System.out.println(msgData);
 					String[] splitted = msgData.split(" ");
@@ -58,12 +58,12 @@ public class ReadingThread implements Runnable {
 							bytesWritten = msgPacket.getData().length;
 						} while (msgPacket != null && bytesWritten > 0 && bytesWritten <= Client.BUFF_SIZE);
 					} catch (IOException e) {
-						e.printStackTrace();
 					}
 					break;
 				}
+				default:
+					break;
 				}
-
 			} catch (SocketException e) {
 				System.out.println("You logged out.");
 			} catch (IOException e) {

@@ -48,19 +48,26 @@ public class Client {
 		String msgType = msg.split(" ")[0].trim();
 		String msgData = msg.substring(msgType.length()).trim();
 
+		String message = null;
+
 		switch (msgType) {
 		case "TEXT": {
-			String message = new StringBuilder().append("TEXT ").append(username).append(": ").append(msgData)
-					.toString();
+			message = new StringBuilder().append("TEXT ").append(username).append(": ").append(msgData).toString();
 			DatagramPacket msgPacket = new DatagramPacket(message.getBytes(), message.getBytes().length, address, PORT);
 			clientSocket.send(msgPacket);
 			break;
 		}
+		case "VIDEO":
+
 		case "IMAGE": {
-			// IMAGE E:\Eclipse Photon Workspace\sign.jpg
-			String imageName = new File(msgData).getName();
-			String message = new StringBuilder().append("IMAGE ").append(username).append(" sent image ")
-					.append(imageName).toString();
+			File file = new File(msgData);
+			if (!file.exists()) {
+				System.out.println("No such file.");
+				break;
+			}
+			String imageName = file.getName();
+			String info = (msgType.equals("IMAGE")) ? " sent image " : " sent video ";
+			message = new StringBuilder().append("IMAGE ").append(username).append(info).append(imageName).toString();
 			DatagramPacket msgPacket = new DatagramPacket(message.getBytes(), message.getBytes().length, address, PORT);
 			clientSocket.send(msgPacket);
 
@@ -68,18 +75,16 @@ public class Client {
 				byte[] buff = new byte[BUFF_SIZE];
 				int readBytes;
 				while ((readBytes = in.read(buff, 0, BUFF_SIZE)) > 0) {
-					// new ByteArrayInputStream("IMAGE ".getBytes()).read(buff); // close
 					msgPacket = new DatagramPacket(buff, readBytes, address, PORT);
 					clientSocket.send(msgPacket);
 				}
 			} catch (IOException e) {
-				System.out.println("Could not send image.");
+				System.out.println("Could not send the message.");
 				e.printStackTrace();
 			}
 			break;
 		}
-		case "VIDEO":
-			break;
+
 		case "LOGOUT": {
 			DatagramPacket msgPacket = new DatagramPacket(msgData.getBytes(), msgData.getBytes().length, address, PORT);
 			clientSocket.send(msgPacket);
@@ -182,6 +187,5 @@ public class Client {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-
 	}
 }

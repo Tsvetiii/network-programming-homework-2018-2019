@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.MulticastSocket;
 import java.net.SocketException;
-import java.net.SocketTimeoutException;
 
 public class ReadingThread implements Runnable {
 
@@ -42,6 +41,8 @@ public class ReadingThread implements Runnable {
 					System.out.println(msgData);
 					break;
 				}
+				case "VIDEO":
+
 				case "IMAGE": {
 					System.out.println(msgData);
 					String[] splitted = msgData.split(" ");
@@ -61,16 +62,10 @@ public class ReadingThread implements Runnable {
 					}
 					break;
 				}
-				default:
-					System.out.println("The packet is here. And is: ");
-					System.out.println(msgData);
-					break;
 				}
 
 			} catch (SocketException e) {
 				System.out.println("You logged out.");
-			} catch (SocketTimeoutException e) {
-				System.out.println("Timeout");
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
